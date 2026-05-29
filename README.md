@@ -4,7 +4,7 @@ A Chrome/Firefox extension that adds **↓ Check below** and **↓ Uncheck below
 
 ## The Problem
 
-Gmail's select-all is great, but deselecting a range of emails requires clicking each checkbox individually. This extension fixes that.
+Sometimes I go to GMail and I have many emails I want to delete, I press the select all and then I havve to scrool down to the emails I want to keep (Generally a day ago so maybe the bottom 40) and uncheck each one.  Gmail's select-all is great, but deselecting a range of emails is a lot of work. This extension fixes that.
 
 ## How to Use
 
