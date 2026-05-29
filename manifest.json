@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Gmail Toggle Checks",
+  "version": "1.0.0",
+  "description": "Hover any email row to reveal buttons that check or uncheck every email from that row down.",
+  "host_permissions": [
+    "https://mail.google.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://mail.google.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "gmail-toggle-checks@kbrill",
+      "strict_min_version": "109.0"
+    }
+  }
+}
