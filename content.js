@@ -1,104 +1,119 @@
 (function () {
   'use strict';
 
-  // Prevent double-injection on Gmail navigation events
-  if (document.getElementById('gtc-toolbar')) return;
+  // Gmail's hover actions (Archive, Delete, Snooze, …) live in a <ul class="bqY">
+  // inside each row's action cell. We add our buttons to that list so they sit
+  // in the same bar instead of in a separate floating panel.
+  const SVG_NS = 'http://www.w3.org/2000/svg';
 
-  let activeRow = null;
-  let hideTimer = null;
+  // Icon shapes as [tag, attributes]. Built with DOM calls, not innerHTML,
+  // because Gmail enforces Trusted Types.
+  const CHECKBOX = ['rect', { x: 3, y: 3, width: 11, height: 11, rx: 2 }];
+  const DOWN_ARROW = ['path', { d: 'M18 11v9.5m-3.5-3.5L18 20.5l3.5-3.5' }];
 
-  // Labels of Gmail's hover actions (Archive, Delete, Snooze, Mark as read, Track/Unsubscribe, …)
-  const STOCK_ACTION_RE = /archive|delete|trash|snooze|mark as|unsubscribe|track/i;
+  const ACTIONS = [
+    {
+      title:   'Check this row and every row below it',
+      label:   'Check below',
+      checked: true,
+      shapes:  [CHECKBOX, ['path', { d: 'M6 8.5l2 2 4-4' }], DOWN_ARROW],
+    },
+    {
+      title:   'Uncheck this row and every row below it',
+      label:   'Uncheck below',
+      checked: false,
+      shapes:  [CHECKBOX, DOWN_ARROW],
+    },
+  ];
 
-  const toolbar = buildToolbar();
-  document.body.appendChild(toolbar);
-
-  document.addEventListener('mouseover', onMouseOver);
-  document.addEventListener('mouseout', onMouseOut);
-  toolbar.addEventListener('mouseenter', () => clearTimeout(hideTimer));
-  toolbar.addEventListener('mouseleave', scheduleHide);
-
-  // Gmail is a SPA — re-guard on each navigation so we never double-inject
-  const navObserver = new MutationObserver(() => {
-    if (!document.getElementById('gtc-toolbar')) {
-      document.body.appendChild(toolbar);
-    }
-  });
-  navObserver.observe(document.body, { childList: true });
-
-  // ── event handlers ──────────────────────────────────────────────────────────
-
-  function onMouseOver(e) {
-    const row = emailRow(e.target);
-    if (!row) return;
-    clearTimeout(hideTimer);
-    activeRow = row;
-    // Re-align on every hover: Gmail renders its hover actions after the first mouseover
-    alignToolbar(row);
-    toolbar.style.display = 'flex';
+  // Add our buttons to any hover bar that doesn't have them yet.
+  // Gmail re-renders the bar on hover, so this runs on every DOM change.
+  function injectIntoBars() {
+    document.querySelectorAll('ul.bqY').forEach(bar => {
+      if (bar.querySelector('.gtc-action')) return;
+      const items = ACTIONS.map(makeItem);
+      items.push(makeSep());
+      bar.prepend(...items);
+    });
   }
 
-  function onMouseOut(e) {
-    const row = emailRow(e.target);
-    if (!row) return;
-    const to = e.relatedTarget;
-    // Keep toolbar visible when mouse moves from row → toolbar (or stays in row)
-    if (to && (row.contains(to) || toolbar.contains(to))) return;
-    scheduleHide();
+  // ── UI construction ──────────────────────────────────────────────────────────
+
+  function makeItem(action) {
+    const li = document.createElement('li');
+    li.className = 'bqX gtc-action';
+    li.setAttribute('data-tooltip', action.title);
+    Object.assign(li.style, {
+      display:        'inline-flex',
+      alignItems:     'center',
+      justifyContent: 'center',
+      width:          '28px',
+      height:         '20px',
+      margin:         '0 2px',
+      borderRadius:   '50%',
+      cursor:         'pointer',
+      color:          '#5f6368',
+    });
+
+    li.appendChild(makeIcon(action.shapes));
+
+    li.addEventListener('mouseenter', () => { li.style.background = '#f1f3f4'; });
+    li.addEventListener('mouseleave', () => { li.style.background = 'none'; });
+    // Keep Gmail's row handlers from opening the email or starting a selection
+    li.addEventListener('mousedown', e => e.stopPropagation());
+    li.addEventListener('click', e => {
+      e.stopPropagation();
+      e.preventDefault();
+      applyFromRow(li.closest('tr'), action.checked);
+    });
+    return li;
   }
 
-  function scheduleHide() {
-    hideTimer = setTimeout(() => {
-      toolbar.style.display = 'none';
-      activeRow = null;
-    }, 160);
+  function makeIcon(shapes) {
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    setAttrs(svg, { width: 20, height: 20, viewBox: '0 0 24 24', 'aria-hidden': 'true' });
+    shapes.forEach(([tag, attrs]) => {
+      const el = document.createElementNS(SVG_NS, tag);
+      setAttrs(el, {
+        fill: 'none', stroke: 'currentColor', 'stroke-width': 2,
+        'stroke-linecap': 'round', 'stroke-linejoin': 'round', ...attrs,
+      });
+      svg.appendChild(el);
+    });
+    return svg;
+  }
+
+  function setAttrs(el, attrs) {
+    Object.entries(attrs).forEach(([k, v]) => el.setAttribute(k, v));
+  }
+
+  function makeSep() {
+    const s = document.createElement('li');
+    s.className = 'gtc-action';
+    s.setAttribute('aria-hidden', 'true');
+    Object.assign(s.style, {
+      width:      '1px',
+      height:     '16px',
+      margin:     '0 4px',
+      background: '#dadce0',
+      display:    'inline-block',
+      flexShrink: '0',
+    });
+    return s;
   }
 
   // ── core logic ───────────────────────────────────────────────────────────────
 
-  // Returns the nearest ancestor <tr> that contains a Gmail aria checkbox,
-  // or null if the element isn't inside an email row.
-  function emailRow(el) {
-    const row = el.closest('tr');
-    return row && row.querySelector('div[role="checkbox"]') ? row : null;
-  }
-
-  function alignToolbar(row) {
-    const rect = row.getBoundingClientRect();
-    // Vertically centre the toolbar on the row
-    toolbar.style.top = Math.round(rect.top + (rect.height - 28) / 2) + 'px';
-
-    // Sit just left of Gmail's own hover actions so they stay clickable.
-    // Fall back to the right edge when none are rendered for this row.
-    const stockLeft = leftmostStockAction(row);
-    toolbar.style.right = stockLeft === null
-      ? '16px'
-      : Math.round(document.documentElement.clientWidth - stockLeft + 8) + 'px';
-  }
-
-  // Left edge of the furthest-left visible Gmail hover action in the row, or null
-  function leftmostStockAction(row) {
-    let left = null;
-    row.querySelectorAll('[data-tooltip], [aria-label]').forEach(el => {
-      const label = el.getAttribute('data-tooltip') || el.getAttribute('aria-label') || '';
-      if (!STOCK_ACTION_RE.test(label)) return;
-      const r = el.getBoundingClientRect();
-      if (r.width === 0) return;
-      if (left === null || r.left < left) left = r.left;
-    });
-    return left;
-  }
-
-  // Set every email row from activeRow downward to the given checked state.
+  // Set every email row from `startRow` downward to the given checked state.
   // Gmail uses <div role="checkbox" aria-checked="true|false"> — toggling
   // requires a synthetic click rather than setting .checked.
-  function applyFromRow(checked) {
-    if (!activeRow) return;
+  function applyFromRow(startRow, checked) {
+    if (!startRow) return;
 
     const allRows = Array.from(document.querySelectorAll('tr'))
       .filter(r => r.querySelector('div[role="checkbox"]'));
 
-    const start = allRows.indexOf(activeRow);
+    const start = allRows.indexOf(startRow);
     if (start < 0) return;
 
     for (let i = start; i < allRows.length; i++) {
@@ -109,66 +124,9 @@
     }
   }
 
-  // ── UI construction ──────────────────────────────────────────────────────────
+  // ── start ────────────────────────────────────────────────────────────────────
 
-  function buildToolbar() {
-    const t = document.createElement('div');
-    t.id = 'gtc-toolbar';
-    Object.assign(t.style, {
-      position:     'fixed',
-      right:        '16px',
-      zIndex:       '10000',
-      display:      'none',
-      alignItems:   'center',
-      gap:          '2px',
-      background:   '#fff',
-      border:       '1px solid #dadce0',
-      borderRadius: '4px',
-      boxShadow:    '0 1px 3px rgba(60,64,67,.3),0 4px 8px rgba(60,64,67,.15)',
-      padding:      '2px 4px',
-    });
-
-    t.appendChild(makeBtn('↓ Check below',   'Check this row and every row below it',   true));
-    t.appendChild(makeSep());
-    t.appendChild(makeBtn('↓ Uncheck below', 'Uncheck this row and every row below it', false));
-
-    return t;
-  }
-
-  function makeBtn(label, title, checked) {
-    const b = document.createElement('button');
-    b.textContent = label;
-    b.title = title;
-    Object.assign(b.style, {
-      background:  'none',
-      border:      'none',
-      cursor:      'pointer',
-      padding:     '4px 10px',
-      fontSize:    '12px',
-      fontFamily:  "'Google Sans',Roboto,Arial,sans-serif",
-      color:       '#3c4043',
-      borderRadius:'3px',
-      whiteSpace:  'nowrap',
-      lineHeight:  '20px',
-    });
-    b.addEventListener('mouseenter', () => { b.style.background = '#f1f3f4'; });
-    b.addEventListener('mouseleave', () => { b.style.background = 'none'; });
-    b.addEventListener('click', (e) => {
-      e.stopPropagation();
-      applyFromRow(checked);
-    });
-    return b;
-  }
-
-  function makeSep() {
-    const s = document.createElement('span');
-    Object.assign(s.style, {
-      width:      '1px',
-      height:     '16px',
-      background: '#dadce0',
-      display:    'inline-block',
-      flexShrink: '0',
-    });
-    return s;
-  }
+  injectIntoBars();
+  // Gmail is a SPA and re-renders hover bars constantly
+  new MutationObserver(injectIntoBars).observe(document.body, { childList: true, subtree: true });
 })();
