@@ -4,14 +4,14 @@ A Chrome/Firefox extension that adds **↓ Check below** and **↓ Uncheck below
 
 ## The Problem
 
-Sometimes I go to GMail and I have many emails I want to delete, I press the select all and then I havve to scrool down to the emails I want to keep (Generally a day ago so maybe the bottom 40) and uncheck each one.  Gmail's select-all is great, but deselecting a range of emails is a lot of work. This extension fixes that.
+Sometimes I go to Gmail and I have many emails I want to delete. I press select all, then I have to scroll down to the emails I want to keep (generally from a day ago, so maybe the bottom 40) and uncheck each one. Gmail's select-all is great, but deselecting a range of emails is a lot of work. This extension fixes that.
 
 ## How to Use
 
 1. Open Gmail and optionally hit the **Select all** checkbox at the top to check every visible email.
-2. Hover over the row where you want to start unchecking — a small toolbar appears at the right edge of the screen.
-3. Click **↓ Uncheck below** to uncheck that row and every row below it.
-4. Use **↓ Check below** to do the reverse — check from a row downward.
+2. Hover over the row where you want to start unchecking. Gmail's hover actions appear, with our buttons at the left of the bar.
+3. Click the **Uncheck below** icon (a box with a down arrow) to uncheck that row and every row below it.
+4. Click the **Check below** icon (a checked box with a down arrow) to do the reverse — check from a row downward.
 
 ## Installation
 
@@ -41,9 +41,9 @@ Sometimes I go to GMail and I have many emails I want to delete, I press the sel
 
 Gmail renders its inbox as a table where each row contains a `<div role="checkbox">` instead of a native `<input>`. The content script:
 
-- Listens for `mouseover` events using event delegation (no per-row listeners, works as Gmail dynamically loads rows)
-- Shows a floating toolbar aligned vertically to the hovered row
+- Adds our two icon buttons to the start of Gmail's hover bar (`ul.bqY`), beside Archive, Delete, Snooze, Mark as read and Track/Unsubscribe. A `MutationObserver` re-adds them whenever Gmail re-renders the bar
 - On button click, finds all email rows from the hovered row to the bottom of the list and clicks each checkbox that needs toggling
+- Builds the icon SVGs with DOM APIs rather than `innerHTML`, because Gmail enforces Trusted Types
 
 ## Compatibility
 
