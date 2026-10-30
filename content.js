@@ -7,6 +7,9 @@
   let activeRow = null;
   let hideTimer = null;
 
+  // Labels of Gmail's hover actions (Archive, Delete, Snooze, Mark as read, Track/Unsubscribe, …)
+  const STOCK_ACTION_RE = /archive|delete|trash|snooze|mark as|unsubscribe|track/i;
+
   const toolbar = buildToolbar();
   document.body.appendChild(toolbar);
 
@@ -29,10 +32,9 @@
     const row = emailRow(e.target);
     if (!row) return;
     clearTimeout(hideTimer);
-    if (activeRow !== row) {
-      activeRow = row;
-      alignToolbar(row);
-    }
+    activeRow = row;
+    // Re-align on every hover: Gmail renders its hover actions after the first mouseover
+    alignToolbar(row);
     toolbar.style.display = 'flex';
   }
 
@@ -63,8 +65,28 @@
 
   function alignToolbar(row) {
     const rect = row.getBoundingClientRect();
-    // Vertically centre the toolbar on the row; pin to right side of viewport
+    // Vertically centre the toolbar on the row
     toolbar.style.top = Math.round(rect.top + (rect.height - 28) / 2) + 'px';
+
+    // Sit just left of Gmail's own hover actions so they stay clickable.
+    // Fall back to the right edge when none are rendered for this row.
+    const stockLeft = leftmostStockAction(row);
+    toolbar.style.right = stockLeft === null
+      ? '16px'
+      : Math.round(document.documentElement.clientWidth - stockLeft + 8) + 'px';
+  }
+
+  // Left edge of the furthest-left visible Gmail hover action in the row, or null
+  function leftmostStockAction(row) {
+    let left = null;
+    row.querySelectorAll('[data-tooltip], [aria-label]').forEach(el => {
+      const label = el.getAttribute('data-tooltip') || el.getAttribute('aria-label') || '';
+      if (!STOCK_ACTION_RE.test(label)) return;
+      const r = el.getBoundingClientRect();
+      if (r.width === 0) return;
+      if (left === null || r.left < left) left = r.left;
+    });
+    return left;
   }
 
   // Set every email row from activeRow downward to the given checked state.

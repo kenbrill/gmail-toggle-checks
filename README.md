@@ -42,7 +42,7 @@ Sometimes I go to GMail and I have many emails I want to delete, I press the sel
 Gmail renders its inbox as a table where each row contains a `<div role="checkbox">` instead of a native `<input>`. The content script:
 
 - Listens for `mouseover` events using event delegation (no per-row listeners, works as Gmail dynamically loads rows)
-- Shows a floating toolbar aligned vertically to the hovered row
+- Shows a floating toolbar aligned vertically to the hovered row, positioned just left of Gmail's own hover actions (Archive, Delete, Snooze, Mark as read, Track/Unsubscribe) so they stay clickable
 - On button click, finds all email rows from the hovered row to the bottom of the list and clicks each checkbox that needs toggling
 
 ## Compatibility
